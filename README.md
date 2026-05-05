@@ -18,17 +18,15 @@ A Laravel 13 + Breeze (Blade) web application implementing authentication, role-
 
 ## Architecture Decisions
 
-- Service Layer: business logic is in `app/Service/ProductService.php`.
-- Repository Pattern:
-- contract: `app/Repositories/Contracts/ProductRepositoryInterface.php`
-- implementation: `app/Repositories/Eloquent/ProductRepository.php`
-- Thin Controller: `app/Http/Controllers/ProductController.php` delegates to service and handles only request/response.
-- Dedicated Request namespace in `app/Request`:
-- `app/Request/ProductStoreRequest.php`
-- `app/Request/ProductUpdateRequest.php`
-- Policy-based authorization: `app/Policies/ProductPolicy.php`.
+I structured the code to keep each layer focused on one responsibility:
 
-This structure keeps controllers minimal, enables focused unit/feature testing, and avoids mixing persistence/query concerns with business rules.
+- Controller layer (`app/Http/Controllers/ProductController.php`): handles HTTP flow only (request in, response out).
+- Request layer (`app/Request/ProductStoreRequest.php`, `app/Request/ProductUpdateRequest.php`): centralizes validation rules.
+- Service layer (`app/Service/ProductService.php`): contains business logic and input sanitization.
+- Repository layer (`app/Repositories/Contracts/ProductRepositoryInterface.php`, `app/Repositories/Eloquent/ProductRepository.php`): handles database querying and persistence.
+- Policy layer (`app/Policies/ProductPolicy.php`): enforces authorization rules.
+
+This makes the code easier to maintain, easier to test, and safer to extend as the project grows.
 
 ## Security & Performance
 
@@ -48,7 +46,7 @@ This structure keeps controllers minimal, enables focused unit/feature testing, 
 
 ### Authorization
 
-- Policy enforcement via `authorizeResource` and `ProductPolicy` prevents horizontal privilege escalation.
+- Policy enforcement through explicit `authorize(...)` checks and `ProductPolicy` prevents horizontal privilege escalation.
 
 ### Search Optimization
 
@@ -61,11 +59,15 @@ This structure keeps controllers minimal, enables focused unit/feature testing, 
 ## Challenges & Solutions
 
 - Rich text vs XSS risk:
-- Allow minimal formatting tags while sanitizing dangerous tags/scripts server-side.
-- Multi-tenant ownership constraints:
-- Centralized ownership checks in policy and query scoping in repository to avoid accidental data leakage.
-- Consistent validation:
-- Enforced strict rules in Form Requests, not in controllers.
+Allowed a small set of formatting tags for `description`, but sanitized all input server-side and removed dangerous scripts/styles before saving.
+- Ownership and URL tampering edge cases:
+Handled this with two protections: policy checks for each action and repository scoping so standard users only see their own records.
+- Invalid/abusive input:
+Applied strict Form Request validation (required fields, lengths, numeric constraints, date constraints) before any write operations.
+- Search edge cases:
+Normalized and sanitized search input (trim, strip tags, length limit) to avoid noisy queries and keep behavior stable.
+- Scaling concerns:
+Added indexes and FULLTEXT support to keep common search/filter queries performant as record counts grow.
 
 ## Deployment (Docker)
 
@@ -106,8 +108,11 @@ The `deploy.sh` script automatically performs:
 
 ## Future Improvements
 
-1. Add audit logging for all critical CRUD actions.
-2. Replace basic HTML sanitization with a dedicated sanitizer package and strict CSP headers.
-3. Add full test suite (feature + policy + service unit tests) and CI pipeline.
-4. Move search to dedicated engine (Meilisearch/Elasticsearch) for large datasets.
-5. Add API layer with token auth and versioning for external integrations.
+If this were a real large-scale SaaS product, I would add:
+
+1. Full automated test coverage (feature, policy, unit) with CI/CD quality gates.
+2. Dedicated HTML sanitization library + strict Content Security Policy (CSP) and security headers.
+3. Audit trail/event logging for every critical action (create/update/delete/login/security events).
+4. Advanced search stack (Meilisearch/Elasticsearch) with relevance tuning and analytics.
+5. API-first architecture with versioning, token-based access, and rate limiting.
+6. Background jobs for heavy tasks and observability (metrics, tracing, alerting).
