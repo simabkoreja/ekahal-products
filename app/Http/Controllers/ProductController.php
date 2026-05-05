@@ -14,11 +14,12 @@ class ProductController extends Controller
 {
     public function __construct(private readonly ProductService $productService)
     {
-        $this->authorizeResource(Product::class, 'product');
     }
 
     public function index(Request $request): View
     {
+        $this->authorize('viewAny', Product::class);
+
         $products = $this->productService->list(
             $request->user(),
             $request->string('search')->toString()
@@ -32,11 +33,15 @@ class ProductController extends Controller
 
     public function create(): View
     {
+        $this->authorize('create', Product::class);
+
         return view('products.create');
     }
 
     public function store(ProductStoreRequest $request): RedirectResponse
     {
+        $this->authorize('create', Product::class);
+
         $this->productService->create($request->user(), $request->validated());
 
         return redirect()
@@ -46,16 +51,22 @@ class ProductController extends Controller
 
     public function show(Product $product): View
     {
+        $this->authorize('view', $product);
+
         return view('products.show', compact('product'));
     }
 
     public function edit(Product $product): View
     {
+        $this->authorize('update', $product);
+
         return view('products.edit', compact('product'));
     }
 
     public function update(ProductUpdateRequest $request, Product $product): RedirectResponse
     {
+        $this->authorize('update', $product);
+
         $this->productService->update($product, $request->validated());
 
         return redirect()
@@ -65,6 +76,8 @@ class ProductController extends Controller
 
     public function destroy(Product $product): RedirectResponse
     {
+        $this->authorize('delete', $product);
+
         $this->productService->delete($product);
 
         return redirect()
